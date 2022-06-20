@@ -1,0 +1,7 @@
+/.vscode
+/chrome-driver
+/config.json
+/LinkedInJobScrapper_oldbkp.py
+/py-linkedin-scrapper-venv
+/test.py
+/__pycache__
