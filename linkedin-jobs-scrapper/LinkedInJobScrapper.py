@@ -2,11 +2,16 @@ import re
 from time import sleep
 
 import pandas as pd
-import undetected_chromedriver.v2 as uc
 from bs4 import BeautifulSoup as bs
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.wait import WebDriverWait
+from webdriver_manager.chrome import ChromeDriverManager
 
 
 class JobScrapper:
@@ -36,11 +41,31 @@ class JobScrapper:
         self.target_file_name = target_file_name
         self.target_location = target_location
 
-        options = uc.ChromeOptions()
-        options.headless = False
-        options.add_argument("--headless")
-        self.driver = uc.Chrome(options=options)
-        self.driver.implicitly_wait(10)
+        options = Options()
+        options.add_argument("disable-infobars")
+        # options.add_argument("headless")
+        options.add_argument("disable-gpu")
+        options.add_argument("no-sandbox")
+        options.add_argument("no-default-browser-check")
+        options.add_argument("no-first-run")
+        options.add_argument("--incognito")
+        options.add_argument("--disable-extensions")
+        options.add_experimental_option("detach", True)
+        options.add_experimental_option(
+            "prefs",
+            {
+                # "download.default_directory": r"C:\Users\downloads",
+                "download.prompt_for_download": False,
+                # "download.directory_upgrade": True,
+                "safebrowsing.enabled": False,
+            },
+        )
+
+        self.driver = webdriver.Chrome(
+            service=Service(ChromeDriverManager().install()), options=options
+        )
+
+        self.wait = WebDriverWait(self.driver, 120)
 
     def user_login(self) -> None:
         """This function logs into personal profile"""
@@ -49,11 +74,16 @@ class JobScrapper:
 
         # Enter username and password
 
-        login_username = self.driver.find_element(by=By.NAME, value="session_key")
+        # login_username = self.driver.find_element(by=By.NAME, value="session_key")
+        login_username = self.wait.until(
+            EC.element_to_be_clickable((By.NAME, "session_key"))
+        )
         login_username.clear()
         login_username.send_keys(self.username)
 
-        login_password = self.driver.find_element(by=By.NAME, value="session_password")
+        login_password = self.wait.until(
+            EC.element_to_be_clickable((By.NAME, "session_password"))
+        )
         login_password.clear()
         login_password.send_keys(self.password)
 
@@ -64,6 +94,8 @@ class JobScrapper:
 
             # Validate for successful login attempt
 
+            self.wait.until(EC.url_changes(self.site_url))
+
             post_success_url = self.site_entry_page_url
 
             if self.driver.current_url == post_success_url:
@@ -71,32 +103,56 @@ class JobScrapper:
         except:
             print("Login Fail")
 
+    def user_logout(self) -> None:
+        """This function logs out yht user from current session"""
+
+        self.wait.until(
+            EC.visibility_of_element_located(
+                (
+                    By.CLASS_NAME,
+                    "global-nav__me-photo",
+                )
+            )
+        ).click()
+
+        sleep(1)
+
+        self.wait.until(
+            EC.visibility_of_element_located(
+                (
+                    By.XPATH,
+                    "//a[@href='/m/logout/']",
+                )
+            )
+        ).click()
+
+        print("User logged out successful!!")
+
     def job_search(self) -> None:
         """This function goes to the 'Jobs' section and search for the jobs matching keywords and location"""
 
-        # go to Jobs
-
-        job_link = self.driver.find_element(by=By.LINK_TEXT, value="Jobs")
+        # job_link = self.driver.find_element(by=By.LINK_TEXT, value="Jobs")
+        job_link = self.wait.until(EC.element_to_be_clickable((By.LINK_TEXT, "Jobs")))
         job_link.click()
-        # sleep(5)
 
         # search based on keywords and location and hit enter
 
-        search_keywords = self.driver.find_element(
-            by=By.XPATH,
-            value="//input[starts-with(@id, 'jobs-search-box-keyword')]",
+        search_keywords = self.wait.until(
+            EC.element_to_be_clickable(
+                (By.XPATH, "//input[starts-with(@id, 'jobs-search-box-keyword')]")
+            )
         )
         search_keywords.clear()
         search_keywords.send_keys(self.job_keyword)
-        # sleep(5)
 
-        search_location = self.driver.find_element(
-            by=By.XPATH,
-            value="//input[starts-with(@id, 'jobs-search-box-location')]",
+        search_location = self.wait.until(
+            EC.element_to_be_clickable(
+                (By.XPATH, "//input[starts-with(@id, 'jobs-search-box-location')]")
+            )
         )
         search_location.clear()
         search_location.send_keys(self.job_location)
-        sleep(2)
+        sleep(1)
 
         search_location.send_keys(Keys.RETURN)
 
@@ -105,9 +161,10 @@ class JobScrapper:
 
         # select all filters, choose Past 24 hours and Full-time button  and apply the filter
 
-        parent_filter_button = self.driver.find_element(
-            by=By.XPATH,
-            value="//button[contains(@aria-label,'Show all filters')]",
+        parent_filter_button = self.wait.until(
+            EC.element_to_be_clickable(
+                (By.XPATH, "//button[contains(@aria-label,'Show all filters')]")
+            )
         )
         parent_filter_button.click()
         sleep(1)
@@ -117,7 +174,7 @@ class JobScrapper:
             value="input[value='r86400']",
         )
         self.driver.execute_script("arguments[0].click();", date_Filter_button)
-        sleep(1)
+        sleep(0.5)
 
         job_type_Filter_button = self.driver.find_element(
             by=By.CSS_SELECTOR,
@@ -126,16 +183,19 @@ class JobScrapper:
 
         self.driver.execute_script("arguments[0].click();", job_type_Filter_button)
 
-        Filter_button = self.driver.find_element(
-            by=By.XPATH,
-            value="//button[contains(@aria-label,'Apply current filters')]",
+        Filter_button = self.wait.until(
+            EC.element_to_be_clickable(
+                (By.XPATH, "//button[contains(@aria-label,'Apply current filters')]")
+            )
         )
         self.driver.execute_script("arguments[0].click();", Filter_button)
-        sleep(5)
 
-        total_results = self.driver.find_element(
-            by=By.CLASS_NAME,
-            value="display-flex.t-12.t-black--light.t-normal",
+        sleep(3)
+
+        total_results = self.wait.until(
+            EC.visibility_of_element_located(
+                (By.CLASS_NAME, "display-flex.t-12.t-black--light.t-normal")
+            )
         )
         self.total_results_count = re.search(r"\d+", total_results.text)[0]
 
@@ -161,21 +221,34 @@ class JobScrapper:
                 "Job_Location",
                 "LinkedIn_Job_Link",
                 "Job_Industy",
-                # "Skill_Match",
                 "Job_Description",
             ]
         )
 
         while True:
-            jobs_section = self.driver.find_elements(
-                by=By.CLASS_NAME,
-                value="jobs-search-results__list-item.occludable-update.p0.relative.ember-view",
+
+            jobs_section = self.wait.until(
+                EC.presence_of_all_elements_located(
+                    (
+                        By.CLASS_NAME,
+                        "jobs-search-results__list-item.occludable-update.p0.relative.ember-view",
+                    )
+                )
             )
 
             for section in jobs_section:
 
                 hover = ActionChains(self.driver).move_to_element(section)
                 hover.perform()
+
+                self.wait.until(
+                    EC.presence_of_all_elements_located(
+                        (
+                            By.CLASS_NAME,
+                            "job-card-container",
+                        )
+                    )
+                )
 
                 job_container = section.find_elements(
                     by=By.CLASS_NAME, value="job-card-container"
@@ -190,12 +263,13 @@ class JobScrapper:
                     job_title = job.find_element(
                         by=By.CLASS_NAME, value="job-card-list__title"
                     )
+
                     company = job.find_element(
                         by=By.CLASS_NAME, value="job-card-container__company-name"
-                    )
+                    ).text
 
                     if any(
-                        company.text.upper().find(name.upper()) > -1
+                        company.upper().find(name.upper()) > -1
                         for name in premium_org_list
                     ):
                         organization_type = "Premium"
@@ -205,7 +279,8 @@ class JobScrapper:
 
                     job_location = job.find_element(
                         by=By.CLASS_NAME, value="job-card-container__metadata-item"
-                    )
+                    ).text
+
                     linkedin_job_link = (
                         job.find_element(
                             by=By.CLASS_NAME, value="artdeco-entity-lockup__title"
@@ -216,12 +291,24 @@ class JobScrapper:
 
                     job_title.click()
 
-                    sleep(2)
+                    sleep(0.5)
+
+                    job_desc = self.wait.until(
+                        EC.visibility_of_element_located(
+                            (By.XPATH, "//div[@id='job-details']")
+                        )
+                    ).get_attribute("innerHTML")
+
+                    job_desc = bs(job_desc, features="html.parser").text.strip()
 
                     try:
-                        job_industry = job.find_element(
-                            by=By.XPATH,
-                            value="//li[@class='jobs-unified-top-card__job-insight']/span[contains(normalize-space(), 'employees')]",
+                        job_industry = self.wait.until(
+                            EC.visibility_of_element_located(
+                                (
+                                    By.XPATH,
+                                    "//li[@class='jobs-unified-top-card__job-insight']/span[contains(normalize-space(), 'employees')]",
+                                )
+                            )
                         ).get_attribute("innerHTML")
 
                         job_industry = bs(job_industry, features="html.parser").text
@@ -230,25 +317,6 @@ class JobScrapper:
                     except:
                         job_industry = "Not Mentioned"
 
-                    # try:
-                    #     skill_match = job.find_element(
-                    #         by=By.XPATH,
-                    #         value="//span[contains(normalize-space(), 'You have a preferred skill badge') or contains(normalize-space(), 'Your skills are a strong match for this job')]",
-                    #     ).get_attribute("innerHTML")
-
-                    #     skill_match = bs(
-                    #         skill_match, features="html.parser"
-                    #     ).text.strip()
-
-                    # except:
-                    #     skill_match = "Not Mentioned"
-
-                    job_desc = job.find_element(
-                        by=By.XPATH, value="//div[@id='job-details']"
-                    ).get_attribute("innerHTML")
-
-                    job_desc = bs(job_desc, features="html.parser").text.strip()
-
                     if any(
                         job_desc.find(check) > -1 for check in additional_filter_list
                     ):
@@ -256,12 +324,11 @@ class JobScrapper:
                             {
                                 "Job_ID": job_id,
                                 "Job_Title": job_title.text,
-                                "Organization": company.text,
+                                "Organization": company,
                                 "Organization_Type": organization_type,
-                                "Job_Location": job_location.text,
+                                "Job_Location": job_location,
                                 "LinkedIn_Job_Link": linkedin_job_link,
                                 "Job_Industy": job_industry,
-                                # "Skill_Match": skill_match,
                                 "Job_Description": job_desc,
                             },
                             dtype="str",
@@ -274,10 +341,11 @@ class JobScrapper:
                     by=By.XPATH,
                     value=f"//button[contains(@aria-label,'Page {current_page_number + 1}')]",
                 )
+
+                next_page_button.click()
                 print(
                     f"Page {current_page_number} jobs details extraction complete. Moving to page number {current_page_number + 1}"
                 )
-                next_page_button.click()
                 current_page_number = current_page_number + 1
 
             except:

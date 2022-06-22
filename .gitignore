@@ -5,3 +5,7 @@
 /py-linkedin-scrapper-venv
 /test.py
 /__pycache__
+/LinkedInJobScrapper_v1.py
+/linkedin-jobs-scrapper/__pycache__/LinkedInJobScrapper.cpython-39.pyc
+/Dockerfile
+/linkedin-jobs-scrapper/loginGUI.py
